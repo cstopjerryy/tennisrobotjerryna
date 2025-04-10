@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<sdf version="1.7">
+  <world name="tennis_court_world">
+    <physics type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <!-- 加一个太阳光 -->
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <!-- 添加默认ground_plane 方便可视化地面 -->
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <!-- 可在此处根据需要，加入你自定义的网球场视觉元素 -->
+  </world>
+</sdf>

@@ -1,0 +1,13 @@
+material tennis_court_texture
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture tennis_court.png
+      }
+    }
+  }
+}
