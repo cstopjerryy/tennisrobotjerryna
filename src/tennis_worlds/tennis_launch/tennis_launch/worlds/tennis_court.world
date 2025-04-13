@@ -1,0 +1,40 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <world name="tennis_court_world">
+
+    <!-- 太阳光 -->
+    <light name="sun" type="directional">
+      <pose>0 0 10 0 -0.785398 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <direction>-0.5 -0.5 -1</direction>
+    </light>
+
+    <!-- 网球场地面 25 m × 12 m -->
+    <model name="tennis_court">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane><normal>0 0 1</normal><size>25 12</size></plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane><normal>0 0 1</normal><size>25 12</size></plane>
+          </geometry>
+          <!-- 纯绿色，如果你有纹理可自行替换 -->
+          <material>
+            <ambient>0.1 0.6 0.1 1</ambient>
+            <diffuse>0.1 0.6 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <physics name="default_physics" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+    </physics>
+
+  </world>
+</sdf>
