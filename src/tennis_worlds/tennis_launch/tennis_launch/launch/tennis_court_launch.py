@@ -51,9 +51,16 @@ def generate_launch_description():
     world_path = os.path.join(pkg_share, 'worlds', 'tennis_court.world')
 
     gazebo = ExecuteProcess(
-        cmd=['gazebo', '--verbose', world_path,
-             '-s', 'libgazebo_ros_factory.so'],
-        output='screen')
+    cmd=[
+        'gazebo',
+        '--verbose',
+        str(world_path),
+        '-s', 'libgazebo_ros_factory.so',
+        '-s', 'libgazebo_ros_init.so',
+        '-s', 'libgazebo_ros_api_plugin.so'  # 🔥 重点插件
+    ],
+    output='screen'
+  )
 
     spawn_tb3 = Node(
         package='gazebo_ros', executable='spawn_entity.py',
