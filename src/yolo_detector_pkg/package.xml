@@ -4,7 +4,7 @@
   <name>yolo_detector_pkg</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
-  <maintainer email="jerryyang@todo.todo">jerryyang</maintainer>
+  <maintainer email="cstopjerryy@gmail.com">jerryyang</maintainer>
   <license>TODO: License declaration</license>
 
   <depend>rclpy</depend>
