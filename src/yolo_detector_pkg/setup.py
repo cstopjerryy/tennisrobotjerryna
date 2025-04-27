@@ -14,7 +14,7 @@ setup(
     description='YOLOv8 detector node',
     entry_points={
         'console_scripts': [
-            'yolo_detector = yolo_detector_pkg.detector_node:main'
+            'yolo_detector = yolo_detector_pkg.yolo_detector_node:main'
         ],
     },
 )
