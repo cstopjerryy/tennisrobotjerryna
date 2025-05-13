@@ -30,7 +30,7 @@ class YoloDetector(Node):
         super().__init__('yolo_detector')
 
         # ---------------- 参数 ----------------
-        self.declare_parameter('weight_path', '')
+        self.declare_parameter('weight_path', '/home/jerryyang/ros2_ws/src/yolo_detector_pkg/yolov8n.pt')
         self.declare_parameter('min_conf', 0.25)
         wpath = self.get_parameter('weight_path').get_parameter_value().string_value
         self.min_conf = self.get_parameter('min_conf').get_parameter_value().double_value
@@ -57,11 +57,11 @@ class YoloDetector(Node):
         frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
 
         # 2) YOLO 推理
-        res = self.model(frame, imgsz=640, conf=self.min_conf)[0]
+        res = self.model(frame, imgsz=1280, conf=self.min_conf)[0]
 
         # 3) 发布最大球中心
         tennis_ids = [i for i, c in enumerate(res.boxes.cls) 
-                      if self.model.names[int(c)] == 'tennis_ball']
+                      if self.model.names[int(c)] in [('tennis_ball', 'sports ball')]]
         if tennis_ids:
             # 取面积最大的球
             areas = res.boxes.xywh[tennis_ids][:,2] * res.boxes.xywh[tennis_ids][:,3]
