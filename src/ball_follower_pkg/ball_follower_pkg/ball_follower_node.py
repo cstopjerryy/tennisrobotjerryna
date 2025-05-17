@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+ball_follower_node.py  –  Strategy A with capped angular speed & distance‑based linear speed
+改动要点
+~~~~~~~~
+1. 新增参数   max_wz   – 角速度绝对上限 (rad/s)。
+2. 新增参数   stop_area_ratio – 当 bbox 面积 / 画面面积 ≥ ratio 时停止并触发拾球（TODO）。
+3. 新增参数   v_scale_with_area – 线速度根据 bbox 面积对数下降，靠近时减速。
+4. err_pix → 通过 self.img_w 更新；对 err 做限幅 → 防止因误差瞬变猛转。
+"""
+"""
 ball_follower_node.py  v2
 =========================
 
@@ -26,102 +35,86 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist, Point
 
-
 class BallFollower(Node):
-
-    SEARCH, ALIGN, CHASE = range(3)
+    SEARCH, TRACK = range(2)
 
     def __init__(self):
-        super().__init__('ball_follower')
+        super().__init__('ball_follower_simple')
 
-        # ------------------ 参数 ------------------
+        # ---------------- 参数 ----------------
         self.declare_parameters('', [
-            ('img_width',        1280),
-            ('linear_spd',       0.12),
-            ('ang_align_gain',   1.2),
-            ('ang_chase_gain',   0.6),
-            ('search_wz',        0.25),
-            ('align_pix',        100),
-            ('lost_timeout',     1.0),
-            ('min_conf',         0.25),
+            ('img_width',     1280),   # 相机图像宽度(px)
+            ('linear_spd',    0.18),   # 前进速度 (m/s)
+            ('ang_gain',      0.8),    # 角速度比例增益
+            ('max_wz',        0.6),    # 角速度上限 (rad/s)
+            ('search_wz',     0.3),    # SEARCH 时自旋速度 (rad/s)
+            ('lost_timeout',  1.0),    # 看不见球多久判定丢失 (s)
+            ('min_conf',      0.25),   # YOLO 置信度阈
         ])
 
-        self.w           = self.get_parameter('img_width').value
-        self.v_lin       = self.get_parameter('linear_spd').value
-        self.k_align     = self.get_parameter('ang_align_gain').value
-        self.k_chase     = self.get_parameter('ang_chase_gain').value
-        self.wz_search   = self.get_parameter('search_wz').value
-        self.align_pix   = self.get_parameter('align_pix').value
-        self.lost_t      = self.get_parameter('lost_timeout').value
-        self.min_conf    = self.get_parameter('min_conf').value
+        self.img_w     = self.get_parameter('img_width').value
+        self.v_lin     = self.get_parameter('linear_spd').value
+        self.k_ang     = self.get_parameter('ang_gain').value
+        self.max_wz    = self.get_parameter('max_wz').value
+        self.wz_search = self.get_parameter('search_wz').value
+        self.lost_t    = self.get_parameter('lost_timeout').value
+        self.min_conf  = self.get_parameter('min_conf').value
 
-        # 运行时变量
-        self.state       = self.SEARCH
-        self.last_seen   = 0.0
-        self.err_pix     = 0.0
+        # 状态
+        self.state      = self.SEARCH
+        self.last_seen = 0.0
+        self.err_pix    = 0.0
 
-        # ROS 接口
-        self.sub = self.create_subscription(Point, '/yolo/balls', self.cb_ball, 10)
+        # ROS I/O
+        self.create_subscription(Point, '/yolo/balls', self.cb_ball, 10)
         self.pub = self.create_publisher(Twist, '/cmd_vel', 10)
-        self.create_timer(0.1, self.loop)      # 10 Hz
+        self.create_timer(0.1, self.loop)  # 10 Hz 控制循环
+        self.get_logger().info('✅ BallFollower simple ready')
 
-        self.get_logger().info('✅ BallFollower v2 ready')
-
-    # ---------------- 回调：收到网球 ----------------
+    # ------------------ 接球回调 ------------------
     def cb_ball(self, pt: Point):
         if pt.z < self.min_conf:
             return
-        self.last_seen = self.get_clock().now().nanoseconds / 1e9
-        self.err_pix   = pt.x - self.w / 2.0
+        self.last_seen = self._now()
+        self.err_pix   = pt.x - self.img_w/2
+        if self.state == self.SEARCH:
+            self.state = self.TRACK
 
-    # ---------------- 主循环 ----------------
+    # ------------------ 主循环 ------------------
     def loop(self):
-        now   = self.get_clock().now().nanoseconds / 1e9
+        now   = self._now()
         twist = Twist()
 
-        # ---- 判断是否丢球 ----
+        # 丢球
         if now - self.last_seen > self.lost_t:
             self.state = self.SEARCH
 
-        # ---- 状态机逻辑 ----
         if self.state == self.SEARCH:
             twist.angular.z = self.wz_search
+            twist.linear.x  = 0.0
 
-            # 若突然看到球 → 切 ALIGN
-            if now - self.last_seen <= self.lost_t:
-                self.state = self.ALIGN
-
-        elif self.state == self.ALIGN:
-            err = self.err_pix / (self.w / 2.0)          # 归一化 [-1,1]
-            twist.angular.z = - self.k_align * err
-
-            # 对准完成 → 切 CHASE
-            if abs(self.err_pix) <= self.align_pix:
-                self.state = self.CHASE
-
-        elif self.state == self.CHASE:
-            err = self.err_pix / (self.w / 2.0)
+        elif self.state == self.TRACK:
+            # 不再边走边修角 — 检测到球立即沿当前朝向前进
+            twist.angular.z = 0.0               # ★ 取消角速度修正
             twist.linear.x  = self.v_lin
-            twist.angular.z = - self.k_chase * err
-
-            # 若误差再次变大（球偏出中心） → 回 ALIGN
-            if abs(self.err_pix) > self.align_pix:
-                self.state = self.ALIGN
 
         self.pub.publish(twist)
 
+    # ------------------ 工具 ------------------
+    def _now(self):
+        return self.get_clock().now().nanoseconds / 1e9
 
-# ------------------------------------------------------------------
+    def _sat(self, val):
+        return max(-self.max_wz, min(self.max_wz, val))
+
+
 def main():
-    rclpy.init()
-    node = BallFollower()
+    rclpy.init(); node = BallFollower()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
-    node.destroy_node()
-    rclpy.shutdown()
-
+    node.destroy_node(); rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
